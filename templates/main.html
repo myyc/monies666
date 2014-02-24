@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Charts</title>
+    <script src="//code.jquery.com/jquery.js"></script>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href="/static/css/nv.d3.css">
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script src="/static/js/nv.d3.min.js"></script>
+
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<script>
+    $(function () {
+        $.getJSON("/fetch/{{ sym }}", function (data) {
+            nv.addGraph(function () {
+                var chart = nv.models.lineWithFocusChart();
+
+                chart.xAxis.tickFormat(function (d) {
+                    return d3.time.format("%-d.%-m.%Y")(new Date(d * 1000))
+                });
+
+                chart.x2Axis.tickFormat(function (d) {
+                    return d3.time.format("%-d.%-m.%Y")(new Date(d * 1000))
+                });
+
+                chart.yAxis.tickFormat(d3.format(",.2f"));
+
+                chart.y2Axis.tickFormat(d3.format(",.2f"));
+
+                d3.select('#chart svg')
+                        .datum(data)
+                        .transition().duration(500)
+                        .call(chart);
+
+                nv.utils.windowResize(chart.update);
+
+                return chart;
+            });
+        })
+    })
+</script>
+<header id="head">
+    <div class="container">
+        <h1 id="htitle">Charts</h1>
+    </div>
+</header>
+<div class="container">
+    <div id="chart">
+        <svg style="height:500px"></svg>
+    </div>
+</div>
+</body>
+</html>
