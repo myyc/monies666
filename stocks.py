@@ -1,5 +1,5 @@
 from flask import Flask, render_template, json
-import urllib.request
+import requests
 import time, datetime
 
 app = Flask(__name__)
@@ -34,21 +34,29 @@ def fetch(symbols=None):
 
 #@cache.cache("getsym", expire=600)
 def get(symbol, n):
-    url = "http://ichart.finance.yahoo.com/table.csv?s={}&d=2&e=18&f=2014&a=2&b=18&c=2013&ignore=.csv".format(symbol)
-    with urllib.request.urlopen(url) as f:
-        next(f)
+    url = "http://ichart.finance.yahoo.com/table.csv"
+    p = {
+        "s": symbol,
+        "e": 18,
+        "d": 2,
+        "f": 2014,
+        "b": 18,
+        "a": 2,
+        "c": 2013
+    }
 
-        def dec(r):
-            r = r.decode("utf-8").split(",")
-            return {
-                "x": int(time.mktime(datetime.datetime.strptime(r[0], "%Y-%m-%d").timetuple())),
-                "y": float(r[4])
-            }
+    def dec(r):
+        r = r.split(",")
+        return {
+            "x": int(time.mktime(datetime.datetime.strptime(r[0], "%Y-%m-%d").timetuple())),
+            "y": float(r[4])
+        }
 
-        data = [dec(r) for r in f]
-        m = list(map(lambda d: {"x": d["x"], "y": d["y"] / (n*data[-1]["y"])}, data))
-        m.reverse()
-        return {"key": symbol, "values": m}
+    data = [dec(r) for r in requests.get(url, params=p).text.split("\n")]
+    m = list(map(lambda d: {"x": d["x"], "y": d["y"] / (n * data[-1]["y"])}, data))
+    m.reverse()
+    print(m)
+    return {"key": symbol, "values": m}
 
 
 if __name__ == "__main__":
