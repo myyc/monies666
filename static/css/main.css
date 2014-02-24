@@ -1,0 +1,24 @@
+body {
+    background-color: #1a1a1a;
+    color: #aaaaaa;
+}
+
+#head {
+    background-color: #272727;
+    height: 140px;
+}
+
+#htitle {
+    font-size: 80px;
+    font-weight: bold;
+    color: #c60f13;
+    margin-top: 20px;
+}
+
+.tick text, .nv-axisMaxMin text {
+    fill: #aaaaaa;
+}
+
+.tick line {
+    opacity: 0.1;
+}
