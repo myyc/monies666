@@ -24,7 +24,7 @@ def reweigh(l, n):
     l["values"] = [{"x": d["x"], "y": d["y"] / (0.0001 + n * l["values"][0]["y"])} for d in l["values"]]
     return l
 
-
+@app.route("/")
 @app.route("/hi/<symbols>", defaults={"fromdate": None, "todate": None})
 @app.route("/hi/<symbols>/<todate>", defaults={"fromdate": None})
 @app.route("/hi/<symbols>/<fromdate>/<todate>")
