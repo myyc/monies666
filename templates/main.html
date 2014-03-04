@@ -15,7 +15,7 @@
 <body>
 <script>
     $(function () {
-        $.getJSON("/fetch/{{ args }}", function (data) {
+        $.getJSON("/{{ what }}/{{ args }}", function (data) {
             nv.addGraph(function () {
                 var chart = nv.models.lineWithFocusChart();
 

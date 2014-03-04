@@ -1,8 +1,11 @@
+import time
+
 from flask import Flask, render_template, json
 import requests
-import time
-import datetime
-import pymongo
+import configparser, os
+
+from mongo666 import *
+
 
 app = Flask(__name__)
 
@@ -10,9 +13,9 @@ from beaker.cache import CacheManager
 from beaker.util import parse_cache_config_options
 
 cache_opts = {
-    'cache.type': 'file',
-    'cache.data_dir': '/tmp/cache/data',
-    'cache.lock_dir': '/tmp/cache/lock'
+    "cache.type": 'file',
+    "cache.data_dir": "/tmp/cache/data",
+    "cache.lock_dir": "/tmp/cache/lock"
 }
 
 cache = CacheManager(**parse_cache_config_options(cache_opts))
@@ -25,10 +28,18 @@ def reweigh(l, n):
     return l
 
 
+def weighfund(isin, v):
+    md = getfundweights(isin)
+    if md["w"] > 0:
+        v["values"] = [{"x": d["x"], "y": d["y"] * md["w"]} for d in v["values"]]
+    return v
+
+
+@app.route("/stocks/", defaults={"symbols": None, "startdate": None, "enddate": None})
 @app.route("/stocks/<symbols>", defaults={"startdate": None, "enddate": None})
 @app.route("/stocks/<symbols>/<enddate>", defaults={"startdate": None})
-@app.route("/hi/<symbols>/<startdate>/<enddate>")
-def hello(symbols=None, startdate=None, enddate=None):
+@app.route("/stocks/<symbols>/<startdate>/<enddate>")
+def stocks(symbols=None, startdate=None, enddate=None):
     if symbols is None:
         symbols = "AAPL"
     args = symbols
@@ -36,15 +47,39 @@ def hello(symbols=None, startdate=None, enddate=None):
         args += "/" + startdate
     if enddate is not None:
         args += "/" + enddate
-    return render_template("main.html", args=args)
+    return render_template("main.html", what="getstocks", args=args)
 
 
+@app.route("/funds/", defaults={"isins": None, "startdate": None, "enddate": None})
+@app.route("/funds/<isins>", defaults={"startdate": None, "enddate": None})
+@app.route("/funds/<isins>/<enddate>", defaults={"startdate": None})
+@app.route("/funds/<isins>/<startdate>/<enddate>")
+def funds(isins=None, startdate=None, enddate=None):
+    if isins is None or isins == "default":
+        isins = ",".join(getallisins())
+    args = isins
+    if startdate is not None:
+        args += "/" + startdate
+    if enddate is not None:
+        args += "/" + enddate
+    return render_template("main.html", what="getfunds", args=args)
 
 
-@app.route("/fetch/<symbols>", defaults={"startdate": None, "enddate": None})
-@app.route("/fetch/<symbols>/<startdate>", defaults={"enddate": None})
-@app.route("/fetch/<symbols>/<startdate>/<enddate>")
-def fetch(symbols, startdate=None, enddate=None):
+@app.route("/getfunds/<isins>", defaults={"startdate": None, "enddate": None})
+@app.route("/getfunds/<isins>/<startdate>", defaults={"enddate": None})
+@app.route("/getfunds/<isins>/<startdate>/<enddate>")
+def getfunds(isins, startdate=None, enddate=None):
+    enddate = datetime.datetime.today() if enddate is None else datetime.datetime.strptime(enddate, "%Y-%m-%d")
+    startdate = datetime.datetime(2014, 2, 1) if startdate is None else datetime.datetime.strptime(startdate,
+                                                                                                   "%Y-%m-%d")
+    isins = isins.split(",")
+    return json.dumps([weighfund(isin, getfrommorningstar(isin, startdate, enddate, "EUR")) for isin in isins])
+
+
+@app.route("/getstocks/<symbols>", defaults={"startdate": None, "enddate": None})
+@app.route("/getstocks/<symbols>/<startdate>", defaults={"enddate": None})
+@app.route("/getstocks/<symbols>/<startdate>/<enddate>")
+def getstocks(symbols, startdate=None, enddate=None):
     enddate = datetime.datetime.today() if enddate is None else datetime.datetime.strptime(enddate, "%Y-%m-%d")
     startdate = datetime.datetime.today() - datetime.timedelta(
         days=360) if startdate is None else datetime.datetime.strptime(startdate, "%Y-%m-%d")
@@ -53,33 +88,11 @@ def fetch(symbols, startdate=None, enddate=None):
 
 
 def get(symbol, startdate, enddate):
-    conn = pymongo.Connection("127.0.0.1")
-    coll = conn["stocks"]["daily"]
-    cur = coll.find({"symbol": symbol, "date": {"$gte": startdate, "$lte": enddate}}).sort([("date", 1)])
+    cur = getstocksfrommongo(symbol, startdate, enddate)
     if cur.count() == 0:
         return getfromyahoo(symbol, startdate, enddate)
     else:
         return {"key": symbol, "values": [{"x": time.mktime(d["date"].timetuple()), "y": d["close"]} for d in cur]}
-
-
-def insertintomongo(symbol, text):
-    conn = pymongo.Connection("127.0.0.1")
-    coll = conn["stocks"]["daily"]
-
-    def dec(r):
-        r = r.split(",")
-        return {
-            "symbol": symbol,
-            "date": datetime.datetime.strptime(r[0], "%Y-%m-%d"),
-            "open": float(r[1]),
-            "high": float(r[2]),
-            "close": float(r[3]),
-            "volume": float(r[4]),
-            "adjclose": float(r[5])
-        }
-
-    o = [dec(r) for r in text.strip().split("\n")[1:]]
-    coll.insert(o)
 
 
 def getfromyahoo(symbol, startdate, enddate):
@@ -109,12 +122,13 @@ def getfromyahoo(symbol, startdate, enddate):
     return {"key": symbol, "values": [dec(r) for r in text.strip().split("\n")[1:]]}
 
 
+@cache.cache("funds", expire=600)
 def getfrommorningstar(isin, startdate, enddate, currency):
-    url = "http://tools.morningstar.it/api/rest.svc/timeseries_price/jbyiq3rhyf"
-    
+    url = getmorningstarurl()
+
     p = {
         "currencyId": currency,
-        "frequency": "daily",
+        "frequency": "hourly",
         "startDate": startdate.strftime("%Y-%m-%d"),
         "endDate": enddate.strftime("%Y-%m-%d"),
         "priceType": "",
@@ -122,7 +136,18 @@ def getfrommorningstar(isin, startdate, enddate, currency):
         "idType": "isin",
         "id": isin
     }
-    &priceType=&outputType=COMPACTJSON&id=LU0418790928"
+
+    return {
+        "key": getfundname(isin).lower(),
+        "values": [{"x": d[0] / 1000., "y": d[1]} for d in json.loads(requests.get(url, params=p).text)]
+    }
+
+
+def getmorningstarurl():
+    config = configparser.RawConfigParser()
+    config.read(app.root_path + "/conf/default.cfg")
+    return config.get("morningstar", "url")
+
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -46,3 +46,9 @@ def getfundname(isin):
     coll = conn["funds"]["metadata"]
     d = coll.find_one({"isin": isin})
     return isin if d is None else d["abbr"]
+
+
+def getallisins():
+    conn = pymongo.Connection("127.0.0.1")
+    coll = conn["funds"]["metadata"]
+    return [d["isin"] for d in coll.find()]
