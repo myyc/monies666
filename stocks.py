@@ -24,38 +24,40 @@ def reweigh(l, n):
     l["values"] = [{"x": d["x"], "y": d["y"] / (0.0001 + n * l["values"][0]["y"])} for d in l["values"]]
     return l
 
-@app.route("/")
-@app.route("/hi/<symbols>", defaults={"fromdate": None, "todate": None})
-@app.route("/hi/<symbols>/<todate>", defaults={"fromdate": None})
-@app.route("/hi/<symbols>/<fromdate>/<todate>")
-def hello(symbols=None, fromdate=None, todate=None):
+
+@app.route("/stocks/<symbols>", defaults={"startdate": None, "enddate": None})
+@app.route("/stocks/<symbols>/<enddate>", defaults={"startdate": None})
+@app.route("/hi/<symbols>/<startdate>/<enddate>")
+def hello(symbols=None, startdate=None, enddate=None):
     if symbols is None:
         symbols = "AAPL"
     args = symbols
-    if fromdate is not None:
-        args += "/" + fromdate
-    if todate is not None:
-        args += "/" + todate
+    if startdate is not None:
+        args += "/" + startdate
+    if enddate is not None:
+        args += "/" + enddate
     return render_template("main.html", args=args)
 
 
-@app.route("/fetch/<symbols>", defaults={"fromdate": None, "todate": None})
-@app.route("/fetch/<symbols>/<fromdate>", defaults={"todate": None})
-@app.route("/fetch/<symbols>/<fromdate>/<todate>")
-def fetch(symbols, fromdate=None, todate=None):
-    todate = datetime.datetime.today() if todate is None else datetime.datetime.strptime(todate, "%Y-%m-%d")
-    fromdate = datetime.datetime.today() - datetime.timedelta(
-        days=360) if fromdate is None else datetime.datetime.strptime(fromdate, "%Y-%m-%d")
+
+
+@app.route("/fetch/<symbols>", defaults={"startdate": None, "enddate": None})
+@app.route("/fetch/<symbols>/<startdate>", defaults={"enddate": None})
+@app.route("/fetch/<symbols>/<startdate>/<enddate>")
+def fetch(symbols, startdate=None, enddate=None):
+    enddate = datetime.datetime.today() if enddate is None else datetime.datetime.strptime(enddate, "%Y-%m-%d")
+    startdate = datetime.datetime.today() - datetime.timedelta(
+        days=360) if startdate is None else datetime.datetime.strptime(startdate, "%Y-%m-%d")
     symbols = symbols.split(",")
-    return json.dumps([reweigh(get(sym, fromdate, todate), len(symbols)) for sym in symbols])
+    return json.dumps([reweigh(get(sym, startdate, enddate), len(symbols)) for sym in symbols])
 
 
-def get(symbol, fromdate, todate):
+def get(symbol, startdate, enddate):
     conn = pymongo.Connection("127.0.0.1")
     coll = conn["stocks"]["daily"]
-    cur = coll.find({"symbol": symbol, "date": {"$gte": fromdate, "$lte": todate}}).sort([("date", 1)])
+    cur = coll.find({"symbol": symbol, "date": {"$gte": startdate, "$lte": enddate}}).sort([("date", 1)])
     if cur.count() == 0:
-        return getfromyahoo(symbol, fromdate, todate)
+        return getfromyahoo(symbol, startdate, enddate)
     else:
         return {"key": symbol, "values": [{"x": time.mktime(d["date"].timetuple()), "y": d["close"]} for d in cur]}
 
@@ -80,16 +82,16 @@ def insertintomongo(symbol, text):
     coll.insert(o)
 
 
-def getfromyahoo(symbol, fromdate, todate):
+def getfromyahoo(symbol, startdate, enddate):
     url = "http://ichart.finance.yahoo.com/table.csv"
     p = {
         "s": symbol,
-        "f": todate.year,
-        "d": todate.month - 1,
-        "e": todate.day,
-        "c": fromdate.year,
-        "a": fromdate.month - 1,
-        "b": fromdate.day,
+        "f": enddate.year,
+        "d": enddate.month - 1,
+        "e": enddate.day,
+        "c": startdate.year,
+        "a": startdate.month - 1,
+        "b": startdate.day,
         "g": "d",
         "ignore": ".csv"
     }
@@ -106,6 +108,21 @@ def getfromyahoo(symbol, fromdate, todate):
 
     return {"key": symbol, "values": [dec(r) for r in text.strip().split("\n")[1:]]}
 
+
+def getfrommorningstar(isin, startdate, enddate, currency):
+    url = "http://tools.morningstar.it/api/rest.svc/timeseries_price/jbyiq3rhyf"
+    
+    p = {
+        "currencyId": currency,
+        "frequency": "daily",
+        "startDate": startdate.strftime("%Y-%m-%d"),
+        "endDate": enddate.strftime("%Y-%m-%d"),
+        "priceType": "",
+        "outputType": "COMPACTJSON",
+        "idType": "isin",
+        "id": isin
+    }
+    &priceType=&outputType=COMPACTJSON&id=LU0418790928"
 
 if __name__ == "__main__":
     app.run(debug=True)
