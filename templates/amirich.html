@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Am I rich?</title>
+    <script src="//code.jquery.com/jquery.js"></script>
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
+    <link rel="stylesheet" href="/static/css/amirich.css">
+</head>
+<body>
+<script>
+    function pc(v) {
+        return parseInt(10000 * v) / 100. + "%";
+    }
+
+    $(function () {
+        $.getJSON("/amirich/get",function (data) {
+            var tot = parseFloat(data.tot),
+                    v = parseInt(parseFloat(data.tot) * 100) / 100.,
+                    rg = $(".rg"),
+                    base = parseFloat(data.base),
+                    orig = parseFloat(data.base);
+            var m = _.map(data.orig, function (a) {
+                return "<li><span data-original-title=\"" + a.abbr + "\" class=\"tperc liperc "
+                        + (a.ret >= 0 ? "greentotal" : "redtotal") + "\">"
+                        + pc(a.ret) + "</span></li>";
+            });
+            $("#rpercs").html(m.join(""));
+
+            if (v >= base) {
+                rg.addClass("greentotal");
+                rg.removeClass("redtotal");
+            } else {
+                rg.removeClass("greentotal");
+                rg.addClass("redtotal");
+            }
+            $("#bigtotal").html(v + " {{ currency }}");
+            $("#lperc").html(pc((tot - base) / base));
+        }).promise().done(function () {
+            var m = $("#lcol").height() - $("#rcol").height();
+            $(m >= 0 ? "#rcol" : "#lcol").css({"padding-top": 0.5 * (m >= 0 ? m : -m) + "px"});
+            $(".liperc").tooltip({placement: "left"})
+        })
+    })
+</script>
+<div class="container">
+    <div class="row main text-center">
+        <span class="rg" id="bigtotal"></span>
+    </div>
+    <div class="row">
+        <div class="col-lg-6 text-center" id="lcol">
+            <span class="rg perc" id="lperc"></span>
+        </div>
+        <div class="col-lg-6 text-center" id="rcol">
+            <ul id="rpercs">
+            </ul>
+        </div>
+    </div>
+</div>
+</body>
+</html>

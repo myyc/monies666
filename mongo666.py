@@ -1,7 +1,12 @@
 import datetime
+from functools import reduce
 import pymongo
 
 __author__ = 'marco'
+
+
+getfundname = lambda isin: isin if getfundmetadata(isin) is None else getfundmetadata(isin)["abbr"]
+getfundcurrency = lambda isin: None if getfundmetadata(isin) is None else getfundmetadata(isin)["currency"]
 
 
 def getstocksfrommongo(symbol, startdate, enddate):
@@ -33,19 +38,15 @@ def insertintomongo(symbol, text):
 def getfundweights(isin):
     conn = pymongo.Connection("127.0.0.1")
     coll = conn["funds"]["private"]
-    w = 0
-    eur = 0
-    for r in coll.find({"isin": isin}):
-        w += r["quotes"]
-        eur += r["jewgolds"]
-    return {"w": w, "eur": eur}
+    return reduce(lambda u, v: {"w": u["w"] + v["quotes"], "eur": u["eur"] + v["jewgolds"], "orig": u["orig"] + v["quotes"]*v["origprice"]},
+                  coll.find({"isin": isin}),
+                  {"w": 0, "eur": 0, "orig": 0})
 
 
-def getfundname(isin):
+def getfundmetadata(isin):
     conn = pymongo.Connection("127.0.0.1")
     coll = conn["funds"]["metadata"]
-    d = coll.find_one({"isin": isin})
-    return isin if d is None else d["abbr"]
+    return coll.find_one({"isin": isin})
 
 
 def getallisins():

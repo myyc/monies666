@@ -1,38 +1,26 @@
 import time
-import configparser
 
 from flask import Flask, render_template, json
-import requests
 
 from aux.bootstrap import flask_compile
+import getters
 from mongo666 import *
 
-
 app = Flask(__name__)
+getters.app = app
 
-from beaker.cache import CacheManager
-from beaker.util import parse_cache_config_options
-
-cache_opts = {
-    "cache.type": 'file',
-    "cache.data_dir": "/tmp/cache/data",
-    "cache.lock_dir": "/tmp/cache/lock"
-}
-
-cache = CacheManager(**parse_cache_config_options(cache_opts))
-
-getts = lambda d: int(time.mktime(datetime.datetime.strptime(d, "%Y-%m-%d").timetuple()))
+midnight = lambda d: datetime.datetime(d.year, d.month, d.day)
 
 
 def reweigh(l, n):
-    l["values"] = [{"x": d["x"], "y": d["y"] / (0.0001 + n * l["values"][0]["y"])} for d in l["values"]]
+    l = [{"x": d["x"], "y": d["y"] / (0.0001 + n * l[0]["y"])} for d in l]
     return l
 
 
 def weighfund(isin, v):
     md = getfundweights(isin)
     if md["w"] > 0:
-        v["values"] = [{"x": d["x"], "y": d["y"] * md["w"]} for d in v["values"]]
+        v = [{"x": d["x"], "y": d["y"] * md["w"]} for d in v]
     return v
 
 
@@ -70,87 +58,70 @@ def funds(isins=None, startdate=None, enddate=None):
 @app.route("/getfunds/<isins>/<startdate>", defaults={"enddate": None})
 @app.route("/getfunds/<isins>/<startdate>/<enddate>")
 def getfunds(isins, startdate=None, enddate=None):
-    enddate = datetime.datetime.today() if enddate is None else datetime.datetime.strptime(enddate, "%Y-%m-%d")
-    startdate = datetime.datetime(2014, 2, 1) if startdate is None else datetime.datetime.strptime(startdate,
+    enddate = midnight(datetime.datetime.today()) if enddate is None else datetime.datetime.strptime(enddate,
+                                                                                                     "%Y-%m-%d")
+    startdate = datetime.datetime(2014, 1, 1) if startdate is None else datetime.datetime.strptime(startdate,
                                                                                                    "%Y-%m-%d")
     isins = isins.split(",")
-    return json.dumps([weighfund(isin, getfrommorningstar(isin, startdate, enddate, "EUR")) for isin in isins])
+    return json.dumps([
+        {
+            "key": getfundname(isin).lower(),
+            "values": weighfund(isin, getters.getfrommorningstar(isin, startdate, enddate, "EUR"))
+        } for isin in isins
+    ])
 
 
 @app.route("/getstocks/<symbols>", defaults={"startdate": None, "enddate": None})
 @app.route("/getstocks/<symbols>/<startdate>", defaults={"enddate": None})
 @app.route("/getstocks/<symbols>/<startdate>/<enddate>")
 def getstocks(symbols, startdate=None, enddate=None):
-    enddate = datetime.datetime.today() if enddate is None else datetime.datetime.strptime(enddate, "%Y-%m-%d")
-    startdate = datetime.datetime.today() - datetime.timedelta(
-        days=360) if startdate is None else datetime.datetime.strptime(startdate, "%Y-%m-%d")
+    enddate = midnight(
+        datetime.datetime.today() if enddate is None else datetime.datetime.strptime(enddate, "%Y-%m-%d"))
+    startdate = midnight(datetime.datetime.today() - datetime.timedelta(
+        days=360) if startdate is None else datetime.datetime.strptime(startdate, "%Y-%m-%d"))
+
     symbols = symbols.split(",")
-    return json.dumps([reweigh(get(sym, startdate, enddate), len(symbols)) for sym in symbols])
+    return json.dumps([{"key": sym, "values": reweigh(get(sym, startdate, enddate), len(symbols))} for sym in symbols])
+
+
+@app.route("/amirich")
+def amirich():
+    return render_template("amirich.html", currency="€")
+
+
+@app.route("/amirich/get")
+def nutshell():
+    isins = getallisins()
+
+    td = midnight(datetime.datetime.today() + datetime.timedelta(days=1))
+    sd = td - datetime.timedelta(days=5)
+
+    data = (getfundweights(isin) for isin in isins)
+    lvs = (weighfund(isin, getters.getfrommorningstar(isin, sd, td, "EUR"))[-1]["y"] for isin in isins)
+    vsorig = {
+        isin: (getfundweights(isin)["orig"],
+               getfundweights(isin)["w"] * getters.getfrommorningstar(isin, sd, td)[-1]["y"])
+        for isin in isins
+    }
+
+    return json.dumps({
+        "tot": sum(lvs),
+        "base": sum(d["eur"] for d in data),
+        "orig": {isin: {
+            "ret": (vsorig[isin][1] - vsorig[isin][0]) / vsorig[isin][0],
+            "abbr": getfundname(isin)
+        } for isin in vsorig}
+    })
 
 
 def get(symbol, startdate, enddate):
     cur = getstocksfrommongo(symbol, startdate, enddate)
     if cur.count() == 0:
-        return getfromyahoo(symbol, startdate, enddate)
+        return getters.getfromyahoo(symbol, startdate, enddate)
     else:
-        return {"key": symbol, "values": [{"x": time.mktime(d["date"].timetuple()), "y": d["close"]} for d in cur]}
-
-
-def getfromyahoo(symbol, startdate, enddate):
-    url = "http://ichart.finance.yahoo.com/table.csv"
-    p = {
-        "s": symbol,
-        "f": enddate.year,
-        "d": enddate.month - 1,
-        "e": enddate.day,
-        "c": startdate.year,
-        "a": startdate.month - 1,
-        "b": startdate.day,
-        "g": "d",
-        "ignore": ".csv"
-    }
-    text = requests.get(url, params=p).text
-
-    insertintomongo(symbol, text)
-
-    def dec(r):
-        r = r.split(",")
-        return {
-            "x": getts(r[0]),
-            "y": float(r[4])
-        }
-
-    return {"key": symbol, "values": [dec(r) for r in text.strip().split("\n")[1:]]}
-
-
-@cache.cache("funds", expire=600)
-def getfrommorningstar(isin, startdate, enddate, currency):
-    url = getmorningstarurl()
-
-    p = {
-        "currencyId": currency,
-        "frequency": "hourly",
-        "startDate": startdate.strftime("%Y-%m-%d"),
-        "endDate": enddate.strftime("%Y-%m-%d"),
-        "priceType": "",
-        "outputType": "COMPACTJSON",
-        "idType": "isin",
-        "id": isin
-    }
-
-    return {
-        "key": getfundname(isin).lower(),
-        "values": [{"x": d[0] / 1000., "y": d[1]} for d in json.loads(requests.get(url, params=p).text)]
-    }
-
-
-def getmorningstarurl():
-    config = configparser.RawConfigParser()
-    config.read(app.root_path + "/conf/default.cfg")
-    return config.get("morningstar", "url")
+        return [{"x": time.mktime(d["date"].timetuple()), "y": d["close"]} for d in cur]
 
 
 if __name__ == "__main__":
     flask_compile(app)
     app.run(debug=True)
-

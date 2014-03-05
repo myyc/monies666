@@ -1,0 +1,51 @@
+@import "vars";
+
+body {
+  background: @mainblack;
+  color: @mainlightgrey;
+  margin-top: 70px;
+}
+
+#bigtotal {
+  font-weight: bold;
+  font-size: 250px;
+}
+
+span.perc {
+  font-weight: bold;
+  font-size: 140px;
+}
+
+span.tperc {
+  font-weight: bold;
+  font-size: 50px;
+}
+
+.redtotal {
+  color: @mainred;
+}
+
+.greentotal {
+  color: @maingreen;
+}
+
+#rpercs {
+  list-style-type: none;
+  top: 0;
+  line-height: 1;
+}
+
+.liperc {
+  cursor: pointer;
+}
+
+.liperc:hover {
+  opacity: 0.8;
+}
+
+.tooltip-inner {
+  color: @mainlightgrey;
+  padding: 5px;
+  font-size: 20px;
+  font-weight: bold;
+}
