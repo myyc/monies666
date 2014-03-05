@@ -27,5 +27,5 @@ TODO
 ====
 
 * Fix \#1. so that everything works decently in my machine
-* Implement a bunch of things (the "am I rich" idea sounds cool)
 * Restructure the code a bit (`stocks.py` is dreadful, although it did get better)
+* Implement some "dummy data" interface so that other people can check this out
