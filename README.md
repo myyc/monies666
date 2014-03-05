@@ -1,4 +1,4 @@
-Stocks
+Monies
 ======
 
 A sandbox to monitor a bunch of crap (stocks, funds). The idea is to evolve it into some sort of portfolio monitoring

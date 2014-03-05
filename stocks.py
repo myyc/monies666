@@ -1,9 +1,10 @@
 import time
+import configparser
 
 from flask import Flask, render_template, json
 import requests
-import configparser, os
 
+from aux.bootstrap import flask_compile
 from mongo666 import *
 
 
@@ -150,5 +151,6 @@ def getmorningstarurl():
 
 
 if __name__ == "__main__":
+    flask_compile(app)
     app.run(debug=True)
 
