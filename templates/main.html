@@ -10,11 +10,13 @@
     <script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
     <script src="/static/js/nv.d3.min.js"></script>
 
+    <script src="/static/js/overlay.js"></script>
     <link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body>
 <script>
     $(function () {
+        startoverlay();
         $.getJSON("/{{ what }}/{{ args }}", function (data) {
             nv.addGraph(function () {
                 var chart = nv.models.lineWithFocusChart();
@@ -40,6 +42,7 @@
 
                 return chart;
             });
+            stopoverlay();
         })
     })
 </script>

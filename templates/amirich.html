@@ -8,6 +8,7 @@
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
     <link rel="stylesheet" href="/static/css/amirich.css">
+    <script src="/static/js/overlay.js"></script>
 </head>
 <body>
 <script>
@@ -28,6 +29,7 @@
             }
         }, curr = "{{ currency }}";
 
+        startoverlay();
         $.getJSON("/amirich/get/{{ currency }}",function (data) {
             var tot = parseFloat(data.tot),
                     v = parseInt(parseFloat(data.tot) * 100) / 100.,
@@ -55,11 +57,12 @@
         }).promise().done(function () {
             var m = $("#lcol").height() - $("#rcol").height();
             $(m >= 0 ? "#rcol" : "#lcol").css({"padding-top": 0.5 * (m >= 0 ? m : -m) + "px"});
-            $(".liperc").tooltip({placement: "left"})
+            $(".liperc").tooltip({placement: "left"});
+            stopoverlay();
         })
     })
 </script>
-<div class="container">
+<div class="container" id="maincont">
     <div class="row main text-center">
         <span class="rg" id="bigtotal"></span>
     </div>
