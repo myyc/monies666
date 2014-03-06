@@ -16,7 +16,19 @@
     }
 
     $(function () {
-        $.getJSON("/amirich/get",function (data) {
+        var curs = {
+            EUR: function (s) {
+                return s + " €";
+            },
+            GBP: function (s) {
+                return "£" + s;
+            },
+            USD: function (s) {
+                return "$" + s;
+            }
+        }, curr = "{{ currency }}";
+
+        $.getJSON("/amirich/get/{{ currency }}",function (data) {
             var tot = parseFloat(data.tot),
                     v = parseInt(parseFloat(data.tot) * 100) / 100.,
                     rg = $(".rg"),
@@ -29,15 +41,17 @@
             });
             $("#rpercs").html(m.join(""));
 
-            if (v >= base) {
-                rg.addClass("greentotal");
-                rg.removeClass("redtotal");
-            } else {
-                rg.removeClass("greentotal");
-                rg.addClass("redtotal");
+            if (curr == "EUR") {
+                if (v >= base) {
+                    rg.addClass("greentotal");
+                    rg.removeClass("redtotal");
+                } else {
+                    rg.removeClass("greentotal");
+                    rg.addClass("redtotal");
+                }
             }
-            $("#bigtotal").html(v + " {{ currency }}");
-            $("#lperc").html(pc((tot - base) / base));
+            $("#bigtotal").html(curs["{{ currency }}"](v));
+            $("#lperc").html(curr == "EUR" ? pc((tot - base) / base) : "–");
         }).promise().done(function () {
             var m = $("#lcol").height() - $("#rcol").height();
             $(m >= 0 ? "#rcol" : "#lcol").css({"padding-top": 0.5 * (m >= 0 ? m : -m) + "px"});

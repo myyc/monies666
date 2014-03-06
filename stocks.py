@@ -84,20 +84,23 @@ def getstocks(symbols, startdate=None, enddate=None):
     return json.dumps([{"key": sym, "values": reweigh(get(sym, startdate, enddate), len(symbols))} for sym in symbols])
 
 
-@app.route("/amirich")
-def amirich():
-    return render_template("amirich.html", currency="€")
+@app.route("/")
+@app.route("/amirich/")
+@app.route("/amirich/<currency>")
+def amirich(currency="EUR"):
+    return render_template("amirich.html", currency=currency)
 
 
-@app.route("/amirich/get")
-def nutshell():
+@app.route("/amirich/get/")
+@app.route("/amirich/get/<currency>")
+def nutshell(currency="EUR"):
     isins = getallisins()
 
     td = midnight(datetime.datetime.today() + datetime.timedelta(days=1))
     sd = td - datetime.timedelta(days=5)
 
     data = (getfundweights(isin) for isin in isins)
-    lvs = (weighfund(isin, getters.getfrommorningstar(isin, sd, td, "EUR"))[-1]["y"] for isin in isins)
+    lvs = (weighfund(isin, getters.getfrommorningstar(isin, sd, td, currency))[-1]["y"] for isin in isins)
     vsorig = {
         isin: (getfundweights(isin)["orig"],
                getfundweights(isin)["w"] * getters.getfrommorningstar(isin, sd, td)[-1]["y"])
